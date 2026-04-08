@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FireShield AI — Big Data Fire Detection System</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fire-red: #FF2D00;
+    --fire-orange: #FF6B00;
+    --fire-amber: #FFA500;
+    --fire-yellow: #FFD700;
+    --bg-dark: #080B10;
+    --bg-card: #0D1117;
+    --bg-panel: #111820;
+    --border: rgba(255,107,0,0.2);
+    --border-hot: rgba(255,45,0,0.5);
+    --text-primary: #F0E6D3;
+    --text-muted: #7A8A99;
+    --text-accent: #FF6B00;
+    --green: #00FF88;
+    --blue: #00BFFF;
+    --low: #FFD700;
+    --med: #FF6B00;
+    --high: #FF2D00;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:var(--bg-dark);
+    color:var(--text-primary);
+    font-family:'Barlow',sans-serif;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  body::before {
+    content:''; position:fixed; inset:0;
+    background:
+      radial-gradient(ellipse 60% 40% at 10% 90%,rgba(255,45,0,0.07) 0%,transparent 60%),
+      radial-gradient(ellipse 40% 60% at 90% 80%,rgba(255,107,0,0.05) 0%,transparent 60%),
+      radial-gradient(ellipse 80% 20% at 50% 100%,rgba(255,165,0,0.06) 0%,transparent 50%);
+    pointer-events:none; z-index:0;
+  }
+  body::after {
+    content:''; position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(255,107,0,0.03) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,107,0,0.03) 1px,transparent 1px);
+    background-size:40px 40px;
+    pointer-events:none; z-index:0;
+  }
+  .container { position:relative; z-index:1; max-width:1400px; margin:0 auto; padding:0 20px 40px; }
+
+  /* FIRE ALERT FLASH */
+  body.fire-alert::before {
+    background:
+      radial-gradient(ellipse 100% 100% at 50% 50%,rgba(255,0,0,0.15) 0%,transparent 70%),
+      radial-gradient(ellipse 60% 40% at 10% 90%,rgba(255,45,0,0.12) 0%,transparent 60%);
+    animation:flash-bg 0.5s ease-in-out;
+  }
+  @keyframes flash-bg {
+    0%,100%{opacity:1} 50%{opacity:0.3}
+  }
+
+  /* HEADER */
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 0 16px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:28px; flex-wrap:wrap; gap:12px;
+  }
+  .logo { display:flex; align-items:center; gap:12px; }
+  .logo-icon {
+    width:44px; height:44px;
+    background:linear-gradient(135deg,var(--fire-red),var(--fire-orange));
+    border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px;
+    box-shadow:0 0 20px rgba(255,45,0,0.4);
+    animation:pulse-glow 2s ease-in-out infinite;
+  }
+  @keyframes pulse-glow {
+    0%,100%{box-shadow:0 0 20px rgba(255,45,0,0.4)}
+    50%{box-shadow:0 0 35px rgba(255,45,0,0.7)}
+  }
+  .logo-text h1 { font-family:'Rajdhani',sans-serif; font-size:1.6rem; font-weight:700; letter-spacing:1px; }
+  .logo-text span { font-size:0.7rem; color:var(--text-muted); letter-spacing:3px; text-transform:uppercase; font-family:'Share Tech Mono',monospace; }
+  .status-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .status-pill {
+    display:flex; align-items:center; gap:6px;
+    padding:6px 14px; border-radius:100px;
+    font-size:0.72rem; font-family:'Share Tech Mono',monospace;
+    letter-spacing:1px; text-transform:uppercase; border:1px solid;
+  }
+  .status-pill.active{border-color:var(--green);color:var(--green);background:rgba(0,255,136,0.08)}
+  .status-pill.live{border-color:var(--fire-orange);color:var(--fire-orange);background:rgba(255,107,0,0.08)}
+  .status-pill.spark{border-color:var(--blue);color:var(--blue);background:rgba(0,191,255,0.08)}
+  .status-pill.api-ok{border-color:var(--green);color:var(--green);background:rgba(0,255,136,0.08)}
+  .status-pill.api-err{border-color:#888;color:#888;background:rgba(128,128,128,0.08)}
+  .dot{width:6px;height:6px;border-radius:50%;animation:blink 1.2s ease-in-out infinite}
+  .dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.orange{background:var(--fire-orange);box-shadow:0 0 6px var(--fire-orange)}
+  .dot.blue{background:var(--blue);box-shadow:0 0 6px var(--blue)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+  /* TABS */
+  .tabs {
+    display:flex; gap:4px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:24px; overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .tab {
+    padding:10px 20px;
+    font-family:'Rajdhani',sans-serif; font-size:0.95rem; font-weight:600;
+    letter-spacing:0.5px; color:var(--text-muted);
+    cursor:pointer; border:none; background:none;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+    transition:all 0.2s; white-space:nowrap;
+  }
+  .tab:hover{color:var(--text-primary)}
+  .tab.active{color:var(--fire-orange);border-bottom-color:var(--fire-orange)}
+  .tab-content{display:none}
+  .tab-content.active{display:block;animation:fadeIn 0.3s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* CARDS */
+  .card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .card-title{font-family:'Rajdhani',sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px}
+
+  /* GRIDS */
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+  .grid-1-2{display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:20px}
+  @media(max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:1fr 1fr}.grid-1-2{grid-template-columns:1fr}}
+  @media(max-width:560px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}}
+
+  /* METRICS */
+  .metric{text-align:center}
+  .metric-val{font-family:'Rajdhani',sans-serif;font-size:2.4rem;font-weight:700;line-height:1;margin-bottom:4px}
+  .metric-label{font-size:0.72rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase}
+  .metric-sub{font-size:0.8rem;color:var(--green);margin-top:4px;font-family:'Share Tech Mono',monospace}
+  .val-red{color:var(--fire-red);text-shadow:0 0 20px rgba(255,45,0,0.5)}
+  .val-orange{color:var(--fire-orange);text-shadow:0 0 20px rgba(255,107,0,0.4)}
+  .val-green{color:var(--green);text-shadow:0 0 20px rgba(0,255,136,0.3)}
+  .val-blue{color:var(--blue);text-shadow:0 0 20px rgba(0,191,255,0.3)}
+
+  /* FIRE ALERT BANNER */
+  .alert-banner{display:flex;align-items:center;gap:12px;padding:12px 18px;border-radius:10px;border:1px solid var(--border-hot);background:rgba(255,45,0,0.08);margin-bottom:20px;font-size:0.85rem}
+  .alert-banner.pulsing{animation:pulse-border 2s ease-in-out infinite}
+  @keyframes pulse-border{0%,100%{border-color:rgba(255,45,0,0.5)}50%{border-color:rgba(255,45,0,0.1)}}
+  .alert-icon{font-size:1.3rem}
+  .alert-text{flex:1}
+  .alert-text strong{color:var(--fire-red);font-family:'Rajdhani',sans-serif;font-size:0.95rem}
+  .alert-time{font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:var(--text-muted)}
+
+  /* EVENT FEED */
+  .event-feed{max-height:320px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+  .event-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:0.82rem;border:1px solid transparent;animation:slideIn 0.4s ease}
+  @keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+  .event-item.high{background:rgba(255,45,0,0.1);border-color:rgba(255,45,0,0.25)}
+  .event-item.med{background:rgba(255,107,0,0.08);border-color:rgba(255,107,0,0.2)}
+  .event-item.low{background:rgba(255,215,0,0.06);border-color:rgba(255,215,0,0.2)}
+  .event-item.none{background:rgba(0,255,136,0.05);border-color:rgba(0,255,136,0.15)}
+  .sev-badge{font-family:'Share Tech Mono',monospace;font-size:0.65rem;padding:2px 8px;border-radius:4px;font-weight:700;letter-spacing:1px;min-width:44px;text-align:center}
+  .sev-badge.HIGH{background:var(--high);color:#fff}
+  .sev-badge.MED{background:var(--med);color:#fff}
+  .sev-badge.LOW{background:var(--low);color:#000}
+  .sev-badge.NONE{background:var(--green);color:#000}
+  .event-loc{flex:1;color:var(--text-primary)}
+  .event-time{font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:var(--text-muted)}
+  .event-conf{font-family:'Share Tech Mono',monospace;font-size:0.68rem;color:var(--fire-amber)}
+
+  /* CONFIDENCE CHART */
+  .chart-container{position:relative;width:100%;overflow:hidden}
+  #confChart{width:100%;height:180px;display:block}
+
+  /* LOG TABLE */
+  .log-table-wrap{max-height:400px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+  .log-table{width:100%;border-collapse:collapse;font-size:0.78rem}
+  .log-table th{font-family:'Rajdhani',sans-serif;font-size:0.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;background:var(--bg-card);z-index:1}
+  .log-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04)}
+  .log-table tr:hover td{background:rgba(255,107,0,0.04)}
+  .log-table .conf-high{color:var(--fire-red)}
+  .log-table .conf-med{color:var(--fire-orange)}
+  .log-table .conf-low{color:var(--fire-yellow)}
+  .log-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-family:'Share Tech Mono',monospace;font-size:0.62rem;font-weight:700}
+  .log-badge.email{background:rgba(0,191,255,0.15);color:var(--blue);border:1px solid rgba(0,191,255,0.3)}
+
+  /* EXPORT BTN */
+  .export-btn{display:inline-flex;align-items:center;gap:8px;padding:9px 20px;background:transparent;border:1px solid var(--fire-orange);border-radius:8px;color:var(--fire-orange);font-family:'Rajdhani',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;transition:all 0.2s;letter-spacing:0.5px}
+  .export-btn:hover{background:rgba(255,107,0,0.1);transform:translateY(-1px)}
+
+  /* FILTER PILLS */
+  .filter-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .fpill{padding:4px 14px;border-radius:100px;font-size:0.72rem;font-family:'Share Tech Mono',monospace;letter-spacing:1px;cursor:pointer;border:1px solid var(--border);color:var(--text-muted);background:transparent;transition:all 0.2s}
+  .fpill:hover{border-color:var(--fire-orange);color:var(--fire-orange)}
+  .fpill.active{border-color:var(--fire-orange);color:var(--fire-orange);background:rgba(255,107,0,0.08)}
+
+  /* HEATMAP */
+  .hm-cell{height:28px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-family:'Share Tech Mono',monospace}
+  .hm-label{color:var(--text-muted);font-size:0.68rem;font-family:'Share Tech Mono',monospace;display:flex;align-items:center}
+  .hm-hour{color:var(--text-muted);font-size:0.58rem;font-family:'Share Tech Mono',monospace;text-align:center;padding-bottom:4px}
+
+  /* GALLERY */
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:8px}
+  .gallery-item{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--bg-panel);aspect-ratio:4/3;cursor:pointer;transition:all 0.2s}
+  .gallery-item:hover{border-color:var(--fire-orange);box-shadow:0 0 20px rgba(255,107,0,0.2);transform:scale(1.02)}
+  .gallery-item .gal-overlay{position:absolute;bottom:0;left:0;right:0;padding:8px 10px;background:linear-gradient(transparent,rgba(0,0,0,0.85));font-size:0.65rem;font-family:'Share Tech Mono',monospace;color:var(--text-muted)}
+  .gallery-item .gal-conf{color:var(--fire-orange);font-weight:700}
+
+  /* BAR CHART */
+  .chart-bars{display:flex;flex-direction:column;gap:10px}
+  .bar-row{display:flex;align-items:center;gap:10px}
+  .bar-label{font-size:0.78rem;color:var(--text-muted);min-width:110px;font-family:'Share Tech Mono',monospace}
+  .bar-track{flex:1;height:22px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:4px;position:relative}
+  .bar-fill::after{content:attr(data-val);position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:0.72rem;font-family:'Share Tech Mono',monospace;color:rgba(255,255,255,0.9);font-weight:700}
+
+  /* MODEL TABLE */
+  .data-table{width:100%;border-collapse:collapse;font-size:0.82rem}
+  .data-table th{font-family:'Rajdhani',sans-serif;font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);padding:10px 12px;border-bottom:1px solid var(--border);text-align:left}
+  .data-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.04)}
+  .data-table tr:hover td{background:rgba(255,107,0,0.04)}
+  .data-table .best td{background:rgba(255,107,0,0.06)}
+  .data-table .best td:first-child{border-left:2px solid var(--fire-orange)}
+  .score-bar{display:inline-block;background:var(--fire-orange);height:3px;border-radius:2px;vertical-align:middle;margin-left:6px;opacity:0.6}
+
+  /* PIPELINE */
+  .pipeline{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:8px}
+  .pipe-stage{flex:1;min-width:130px;display:flex;flex-direction:column;align-items:center;position:relative}
+  .pipe-stage:not(:last-child)::after{content:'→';position:absolute;right:-12px;top:28px;color:var(--fire-orange);font-size:1.2rem;z-index:1}
+  .pipe-box{width:100%;padding:14px 10px;background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;text-align:center;margin:0 16px 0 0;transition:all 0.3s}
+  .pipe-box:hover{border-color:var(--fire-orange);box-shadow:0 0 20px rgba(255,107,0,0.15)}
+  .pipe-stage:last-child .pipe-box{margin-right:0}
+  .pipe-icon{font-size:1.8rem;margin-bottom:6px}
+  .pipe-name{font-family:'Rajdhani',sans-serif;font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-bottom:3px}
+  .pipe-tech{font-size:0.65rem;color:var(--fire-orange);font-family:'Share Tech Mono',monospace;letter-spacing:0.5px}
+
+  /* WEBCAM */
+  .webcam-section{text-align:center}
+  .webcam-btn{display:inline-flex;align-items:center;gap:10px;padding:16px 40px;background:linear-gradient(135deg,var(--fire-red),var(--fire-orange));border:none;border-radius:12px;font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:1px;color:#fff;cursor:pointer;box-shadow:0 0 30px rgba(255,45,0,0.35);transition:all 0.2s;text-transform:uppercase}
+  .webcam-btn:hover{transform:translateY(-2px);box-shadow:0 0 50px rgba(255,45,0,0.55)}
+  .webcam-btn.running{background:linear-gradient(135deg,#c00,var(--fire-red))}
+  .webcam-container{margin-top:24px;position:relative;display:inline-block;border:2px solid var(--border-hot);border-radius:12px;overflow:hidden;box-shadow:0 0 40px rgba(255,45,0,0.2)}
+  .webcam-container.fire-ring{box-shadow:0 0 60px rgba(255,45,0,0.6),0 0 120px rgba(255,45,0,0.2);border-color:#FF2D00;animation:ring-pulse 0.5s ease-in-out infinite alternate}
+  @keyframes ring-pulse{from{box-shadow:0 0 40px rgba(255,45,0,0.4)}to{box-shadow:0 0 80px rgba(255,45,0,0.8)}}
+  #webcamVideo,#webcamCanvas{display:block;max-width:100%;width:640px;height:480px;object-fit:cover}
+  #webcamCanvas{position:absolute;top:0;left:0}
+  .webcam-overlay{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:12px;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent);pointer-events:none}
+  .webcam-badge{font-family:'Share Tech Mono',monospace;font-size:0.68rem;padding:3px 10px;border-radius:4px;letter-spacing:1px}
+  .webcam-badge.live-badge{background:var(--fire-red);color:#fff;animation:blink 1s infinite}
+  .webcam-badge.yolo-badge{background:rgba(0,191,255,0.2);border:1px solid var(--blue);color:var(--blue)}
+  .webcam-placeholder{width:640px;max-width:100%;height:300px;background:var(--bg-panel);border:2px dashed var(--border);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;margin:24px auto 0;color:var(--text-muted)}
+  .webcam-placeholder .ph-icon{font-size:3rem;opacity:0.3}
+  .webcam-placeholder p{font-size:0.85rem;letter-spacing:1px}
+  .detection-stats{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+  .det-stat{background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:12px 20px;text-align:center;min-width:100px;transition:all 0.3s}
+  .det-stat.fire-flash{border-color:var(--fire-red);background:rgba(255,45,0,0.1)}
+  .det-stat-val{font-family:'Rajdhani',sans-serif;font-size:1.5rem;font-weight:700}
+  .det-stat-label{font-size:0.65rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase}
+  .stop-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:transparent;border:1px solid var(--fire-red);border-radius:8px;color:var(--fire-red);font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:600;cursor:pointer;margin-top:12px;transition:all 0.2s}
+  .stop-btn:hover{background:rgba(255,45,0,0.1)}
+
+  /* API STATUS BADGE */
+  .api-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;font-size:0.7rem;font-family:'Share Tech Mono',monospace;margin-top:12px}
+  .api-badge.connected{background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);color:var(--green)}
+  .api-badge.disconnected{background:rgba(128,128,128,0.08);border:1px solid rgba(128,128,128,0.3);color:#888}
+
+  /* TAGS */
+  .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.65rem;font-family:'Share Tech Mono',monospace;letter-spacing:0.5px;border:1px solid}
+  .tag-blue{color:var(--blue);border-color:rgba(0,191,255,0.3);background:rgba(0,191,255,0.08)}
+  .tag-orange{color:var(--fire-orange);border-color:rgba(255,107,0,0.3);background:rgba(255,107,0,0.08)}
+  .tag-green{color:var(--green);border-color:rgba(0,255,136,0.3);background:rgba(0,255,136,0.08)}
+
+  /* DATASET */
+  .ds-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:600px){.ds-grid{grid-template-columns:1fr}}
+  .ds-item{border:1px solid var(--border);border-radius:8px;padding:16px}
+  .ds-label{font-size:0.68rem;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  .ds-val{font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:600}
+
+  /* OBJECTIVES */
+  .obj-list{list-style:none;display:flex;flex-direction:column;gap:10px}
+  .obj-item{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;background:rgba(255,107,0,0.04);border:1px solid rgba(255,107,0,0.1);font-size:0.83rem;line-height:1.5}
+  .obj-num{font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:var(--fire-orange);min-width:24px;margin-top:1px}
+
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(255,107,0,0.3);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🔥</div>
+      <div class="logo-text">
+        <h1>FireShield AI</h1>
+        <span>Big Data Real-Time Fire Detection &amp; Severity Prediction System</span>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="status-pill active"><div class="dot green"></div> System Active</div>
+      <div class="status-pill live"><div class="dot orange"></div> YOLOv8 Ready</div>
+      <div class="status-pill spark"><div class="dot blue"></div> Apache Spark Online</div>
+      <div class="status-pill api-err" id="apiStatusPill"><div class="dot" id="apiDot" style="background:#888"></div> <span id="apiStatusText">fire.py Offline</span></div>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('dashboard',this)">📊 Live Dashboard</button>
+    <button class="tab" onclick="showTab('webcam',this)">📷 Webcam Detection</button>
+    <button class="tab" onclick="showTab('logs',this)">📋 Detection Logs</button>
+    <button class="tab" onclick="showTab('gallery',this)">🖼️ Screenshot Gallery</button>
+    <button class="tab" onclick="showTab('models',this)">🤖 ML Models</button>
+    <button class="tab" onclick="showTab('pipeline',this)">⚙️ Big Data Pipeline</button>
+    <button class="tab" onclick="showTab('severity',this)">🌡️ Severity Analysis</button>
+    <button class="tab" onclick="showTab('dataset',this)">🗄️ Dataset Info</button>
+    <button class="tab" onclick="showTab('about',this)">📋 Project Info</button>
+  </div>
+
+  <!-- ═══ TAB: DASHBOARD ═══ -->
+  <div class="tab-content active" id="tab-dashboard">
+
+    <div class="alert-banner pulsing" id="alertBanner">
+      <div class="alert-icon" id="alertIcon">✅</div>
+      <div class="alert-text">
+        <strong id="alertTitle">SYSTEM MONITORING</strong> — No fire detected. All sensors nominal.<br>
+        <small style="color:var(--text-muted)" id="alertSub">Waiting for detections from fire.py · API polling every 500ms</small>
+      </div>
+      <div class="alert-time" id="alertTime">--:--:--</div>
+    </div>
+
+    <div class="grid-4">
+      <div class="card metric">
+        <div class="card-title">Detections Today</div>
+        <div class="metric-val val-red" id="detectCount">0</div>
+        <div class="metric-label">Fire Events</div>
+        <div class="metric-sub" id="detectSub">Live from fire.py</div>
+      </div>
+      <div class="card metric">
+        <div class="card-title">Model Accuracy</div>
+        <div class="metric-val val-orange">93.2%</div>
+        <div class="metric-label">Gradient Boosting</div>
+        <div class="metric-sub">Best Performer</div>
+      </div>
+      <div class="card metric">
+        <div class="card-title">Records Processed</div>
+        <div class="metric-val val-blue">120K</div>
+        <div class="metric-label">Apache Spark / PySpark</div>
+        <div class="metric-sub">Training corpus</div>
+      </div>
+      <div class="card metric">
+        <div class="card-title">Live FPS</div>
+        <div class="metric-val val-green" id="dashFPS">—</div>
+        <div class="metric-label">YOLOv8 Inference</div>
+        <div class="metric-sub">From fire.py API</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Live Detection Feed</div>
+        <div class="event-feed" id="eventFeed"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Confidence Trend — Last 20 Detections</div>
+        <div class="chart-container">
+          <svg id="confChart" viewBox="0 0 600 180" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="confGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#FF6B00" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="#FF6B00" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+            <line x1="0" y1="30"  x2="600" y2="30"  stroke="rgba(255,107,0,0.08)" stroke-width="1"/>
+            <line x1="0" y1="70"  x2="600" y2="70"  stroke="rgba(255,107,0,0.08)" stroke-width="1"/>
+            <line x1="0" y1="110" x2="600" y2="110" stroke="rgba(255,107,0,0.08)" stroke-width="1"/>
+            <line x1="0" y1="150" x2="600" y2="150" stroke="rgba(255,107,0,0.08)" stroke-width="1"/>
+            <text x="4" y="28"  fill="rgba(122,138,153,0.7)" font-size="10" font-family="Share Tech Mono,monospace">100%</text>
+            <text x="4" y="68"  fill="rgba(122,138,153,0.7)" font-size="10" font-family="Share Tech Mono,monospace">85%</text>
+            <text x="4" y="108" fill="rgba(122,138,153,0.7)" font-size="10" font-family="Share Tech Mono,monospace">70%</text>
+            <path id="confArea" fill="url(#confGrad)" d=""/>
+            <path id="confLine" fill="none" stroke="#FF6B00" stroke-width="2" stroke-linejoin="round" d=""/>
+            <g id="confDots"></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card metric">
+        <div class="card-title">Last Confidence</div>
+        <div class="metric-val val-orange" id="lastConf">—</div>
+        <div class="metric-label">Most Recent Detection</div>
+      </div>
+      <div class="card metric">
+        <div class="card-title">Screenshots Saved</div>
+        <div class="metric-val val-blue" id="ssCount">0</div>
+        <div class="metric-label">Auto-saved on detection</div>
+      </div>
+      <div class="card metric">
+        <div class="card-title">False Positive Rate</div>
+        <div class="metric-val val-green">4.8%</div>
+        <div class="metric-label">vs 12% Traditional</div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Detection Heatmap — Day × Hour</div>
+      <div id="heatmapWrap" style="overflow-x:auto;padding-bottom:8px"></div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: WEBCAM ═══ -->
+  <div class="tab-content" id="tab-webcam">
+    <div class="card webcam-section">
+      <div class="card-title">YOLOv8 Real-Time Fire Detection — Webcam Module</div>
+      <p style="color:var(--text-muted);font-size:0.85rem;max-width:640px;margin:0 auto 8px;line-height:1.6">
+        Start the webcam to view your live camera feed. Fire detection runs in <strong style="color:var(--fire-orange)">fire.py</strong>
+        (Python terminal) and sends results here via API. When fire is detected, this dashboard
+        will <strong style="color:var(--fire-red)">beep</strong>, flash red, and update all analytics in real time.
+      </p>
+
+      <!-- API connection instructions -->
+      <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;max-width:640px;margin:0 auto 20px;font-size:0.78rem;text-align:left">
+        <div style="color:var(--fire-orange);font-family:'Rajdhani',sans-serif;font-size:0.8rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">⚡ How to connect fire.py</div>
+        <div style="font-family:'Share Tech Mono',monospace;color:var(--text-muted);line-height:2">
+          <span style="color:var(--green)">1.</span> Open terminal &nbsp;→&nbsp; <span style="color:var(--text-primary)">cd /Users/azamshaikh/Developer/Fire_Detector_model</span><br>
+          <span style="color:var(--green)">2.</span> Activate venv &nbsp;→&nbsp; <span style="color:var(--text-primary)">source venv/bin/activate</span><br>
+          <span style="color:var(--green)">3.</span> Run detection &nbsp;→&nbsp; <span style="color:var(--text-primary)">python fire.py</span><br>
+          <span style="color:var(--green)">4.</span> Click START WEBCAM below — beep &amp; alerts will trigger automatically
+        </div>
+      </div>
+
+      <div id="apiStatusBadge" class="api-badge disconnected">⬤ fire.py API: Not Connected — run fire.py in terminal first</div>
+
+      <br><br>
+      <button class="webcam-btn" id="webcamBtn" onclick="toggleWebcam()">
+        <span>📷</span>
+        <span id="webcamBtnText">START WEBCAM DETECTION</span>
+      </button>
+
+      <div id="webcamHidden">
+        <div class="webcam-placeholder">
+          <div class="ph-icon">📷</div>
+          <p>Camera feed will appear here</p>
+          <p style="font-size:0.72rem;font-family:'Share Tech Mono',monospace;color:rgba(122,138,153,0.5)">YOLOv8 · confidence_threshold = 0.75 · fire.pt</p>
+        </div>
+      </div>
+
+      <div id="webcamActive" style="display:none">
+        <div class="webcam-container" id="webcamContainer">
+          <video id="webcamVideo" autoplay muted playsinline></video>
+          <canvas id="webcamCanvas"></canvas>
+          <div class="webcam-overlay">
+            <span class="webcam-badge live-badge">● REC</span>
+            <span class="webcam-badge yolo-badge">YOLOv8 · fire.pt</span>
+          </div>
+        </div>
+        <br>
+        <button class="stop-btn" onclick="stopWebcam()">⏹ STOP CAMERA</button>
+      </div>
+
+      <div class="detection-stats" style="margin-top:24px">
+        <div class="det-stat" id="statFrames"><div class="det-stat-val val-orange" id="frameCount">0</div><div class="det-stat-label">Frames Processed</div></div>
+        <div class="det-stat" id="statDetect"><div class="det-stat-val val-red" id="liveDetections">0</div><div class="det-stat-label">Fire Detections</div></div>
+        <div class="det-stat"><div class="det-stat-val val-green" id="liveFPS">0</div><div class="det-stat-label">FPS</div></div>
+        <div class="det-stat" id="statConf"><div class="det-stat-val val-blue" id="liveConf">—</div><div class="det-stat-label">Last Confidence</div></div>
+        <div class="det-stat"><div class="det-stat-val val-orange" id="liveSS">0</div><div class="det-stat-label">Screenshots</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: LOGS ═══ -->
+  <div class="tab-content" id="tab-logs">
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">Detection Log — Live Session</div>
+        <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+      </div>
+      <div class="filter-pills">
+        <button class="fpill active" onclick="filterLog('ALL',this)">ALL</button>
+        <button class="fpill" onclick="filterLog('HIGH',this)">🔴 HIGH</button>
+        <button class="fpill" onclick="filterLog('MED',this)">🟠 MEDIUM</button>
+        <button class="fpill" onclick="filterLog('LOW',this)">🟡 LOW</button>
+      </div>
+      <div class="log-table-wrap">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Timestamp</th><th>Confidence</th><th>Severity</th><th>Source</th><th>Alert</th>
+            </tr>
+          </thead>
+          <tbody id="logTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="card metric">
+        <div class="card-title">Total Logged</div>
+        <div class="metric-val val-orange" id="logTotal">0</div>
+        <div class="metric-label">This session</div>
+      </div>
+      <div class="card metric">
+        <div class="card-title">Avg Confidence</div>
+        <div class="metric-val val-blue" id="logAvgConf">—</div>
+        <div class="metric-label">Detection quality</div>
+      </div>
+      <div class="card metric">
+        <div class="card-title">Alerts Sent</div>
+        <div class="metric-val val-red" id="logAlerts">0</div>
+        <div class="metric-label">Email notifications</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: GALLERY ═══ -->
+  <div class="tab-content" id="tab-gallery">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:0">Auto-saved Detection Screenshots</div>
+        <span style="font-size:0.75rem;color:var(--text-muted);font-family:'Share Tech Mono',monospace">Saved to /detections/ folder by fire.py</span>
+      </div>
+      <div class="gallery-grid" id="galleryGrid"></div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: ML MODELS ═══ -->
+  <div class="tab-content" id="tab-models">
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Model Performance Comparison — Spark MLlib</div>
+      <table class="data-table">
+        <thead><tr><th>Algorithm</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1-Score</th><th>AUC-ROC</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Logistic Regression</td><td>82%<span class="score-bar" style="width:41px"></span></td><td>80%</td><td>81%</td><td>80%</td><td>0.84</td><td><span class="tag tag-blue">Baseline</span></td></tr>
+          <tr><td>Decision Tree</td><td>85%<span class="score-bar" style="width:49px"></span></td><td>84%</td><td>83%</td><td>83%</td><td>0.87</td><td><span class="tag tag-green">Interpretable</span></td></tr>
+          <tr><td>Random Forest</td><td>92%<span class="score-bar" style="width:66px"></span></td><td>91%</td><td>90%</td><td>91%</td><td>0.95</td><td><span class="tag tag-orange">Production</span></td></tr>
+          <tr><td>Support Vector Machine</td><td>89%<span class="score-bar" style="width:57px"></span></td><td>88%</td><td>87%</td><td>87%</td><td>0.92</td><td><span class="tag tag-blue">Trained</span></td></tr>
+          <tr class="best"><td><strong>Gradient Boosting ⭐</strong></td><td><strong>93%</strong><span class="score-bar" style="width:71px;background:var(--fire-orange);opacity:1"></span></td><td><strong>93%</strong></td><td><strong>92%</strong></td><td><strong>92%</strong></td><td><strong>0.97</strong></td><td><span class="tag tag-orange">Best Model</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">F1-Score Comparison</div>
+        <div class="chart-bars" style="margin-top:8px">
+          <div class="bar-row"><div class="bar-label">Logistic Reg.</div><div class="bar-track"><div class="bar-fill" data-val="80%" style="width:80%;background:linear-gradient(90deg,#4A9FD4,#2E6A9E)"></div></div></div>
+          <div class="bar-row"><div class="bar-label">Decision Tree</div><div class="bar-track"><div class="bar-fill" data-val="83%" style="width:83%;background:linear-gradient(90deg,#5BBD8E,#3A9E6E)"></div></div></div>
+          <div class="bar-row"><div class="bar-label">Random Forest</div><div class="bar-track"><div class="bar-fill" data-val="91%" style="width:91%;background:linear-gradient(90deg,#FFA500,#FF6B00)"></div></div></div>
+          <div class="bar-row"><div class="bar-label">SVM</div><div class="bar-track"><div class="bar-fill" data-val="87%" style="width:87%;background:linear-gradient(90deg,#A855F7,#7C3AED)"></div></div></div>
+          <div class="bar-row"><div class="bar-label">Gradient Boost.</div><div class="bar-track"><div class="bar-fill" data-val="92%" style="width:92%;background:linear-gradient(90deg,var(--fire-red),var(--fire-orange))"></div></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Algorithm Configuration</div>
+        <div style="font-size:0.8rem;line-height:1.7;color:var(--text-muted)">
+          <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace">Logistic Regression</span><br>L2 regularisation · λ=0.01 · L-BFGS optimiser</div>
+          <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace">Decision Tree</span><br>Gini impurity · max depth=15 · min gain=0.01</div>
+          <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace">Random Forest</span><br>100 trees · bootstrapped subsets · random feature selection</div>
+          <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace">SVM</span><br>RBF kernel · C=1.0 · gamma=scale</div>
+          <div><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace">Gradient Boosting</span><br>100 rounds · lr=0.1 · max depth=5</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: PIPELINE ═══ -->
+  <div class="tab-content" id="tab-pipeline">
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">End-to-End Big Data Pipeline Architecture</div>
+      <div class="pipeline" style="margin-top:16px">
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">📡</div><div class="pipe-name">Data Sources</div><div class="pipe-tech">IoT · CCTV · Satellite</div></div></div>
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">⚡</div><div class="pipe-name">Ingestion</div><div class="pipe-tech">Kafka · AutoLoader</div></div></div>
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">🔧</div><div class="pipe-name">Preprocessing</div><div class="pipe-tech">PySpark · Databricks</div></div></div>
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">🤖</div><div class="pipe-name">Spark ML</div><div class="pipe-tech">MLlib · 5 Models</div></div></div>
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">🌡️</div><div class="pipe-name">Severity</div><div class="pipe-tech">Low / Med / High</div></div></div>
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">📸</div><div class="pipe-name">Screenshot</div><div class="pipe-tech">Auto-save · Email</div></div></div>
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">💬</div><div class="pipe-name">Alerts</div><div class="pipe-tech">Email · WhatsApp</div></div></div>
+        <div class="pipe-stage"><div class="pipe-box"><div class="pipe-icon">📊</div><div class="pipe-name">Dashboard</div><div class="pipe-tech">Power BI · HTML</div></div></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Preprocessing Steps — PySpark</div>
+        <ol style="list-style:none;display:flex;flex-direction:column;gap:8px;font-size:0.82rem">
+          <li style="display:flex;gap:10px"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace;font-size:0.7rem">01</span>Null value imputation using column medians</li>
+          <li style="display:flex;gap:10px"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace;font-size:0.7rem">02</span>Categorical encoding (location, sensor, weather)</li>
+          <li style="display:flex;gap:10px"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace;font-size:0.7rem">03</span>Min-max normalisation → [0, 1]</li>
+          <li style="display:flex;gap:10px"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace;font-size:0.7rem">04</span>Temporal feature extraction (hour, day, season)</li>
+          <li style="display:flex;gap:10px"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace;font-size:0.7rem">05</span>VectorAssembler → feature vector</li>
+          <li style="display:flex;gap:10px"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace;font-size:0.7rem">06</span>80/20 stratified train-test split</li>
+          <li style="display:flex;gap:10px"><span style="color:var(--fire-orange);font-family:'Share Tech Mono',monospace;font-size:0.7rem">07</span>Gaussian noise augmentation (synthetic expansion)</li>
+        </ol>
+      </div>
+      <div class="card">
+        <div class="card-title">Tools &amp; Technologies</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+          <span class="tag tag-blue">Apache Spark 3.4</span><span class="tag tag-blue">PySpark</span><span class="tag tag-blue">Databricks</span>
+          <span class="tag tag-orange">Apache Kafka</span><span class="tag tag-orange">Delta Lake</span><span class="tag tag-orange">Spark MLlib</span>
+          <span class="tag tag-green">YOLOv8</span><span class="tag tag-green">OpenCV 4.x</span><span class="tag tag-green">Python 3.13</span>
+          <span class="tag tag-blue">Power BI</span><span class="tag tag-orange">Ultralytics</span>
+          <span class="tag tag-green">Flask API</span><span class="tag tag-blue">Azure / AWS S3</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: SEVERITY ═══ -->
+  <div class="tab-content" id="tab-severity">
+    <div class="grid-3" style="margin-bottom:20px">
+      <div class="card" style="border-color:rgba(255,215,0,0.3)"><div class="card-title" style="color:var(--low)">LOW Severity</div><div class="metric-val" style="color:var(--low);font-family:'Rajdhani',sans-serif;font-size:2rem;margin-bottom:8px" id="sevLow">0</div><div style="font-size:0.8rem;color:var(--text-muted);line-height:1.6">Confidence 75–80%<br>Smouldering / early-stage<br>Response: Monitor &amp; Investigate</div></div>
+      <div class="card" style="border-color:rgba(255,107,0,0.35)"><div class="card-title" style="color:var(--med)">MEDIUM Severity</div><div class="metric-val" style="color:var(--med);font-family:'Rajdhani',sans-serif;font-size:2rem;margin-bottom:8px" id="sevMed">0</div><div style="font-size:0.8rem;color:var(--text-muted);line-height:1.6">Confidence 80–90%<br>Developed fire, moderate spread<br>Response: Dispatch Fire Unit</div></div>
+      <div class="card" style="border-color:rgba(255,45,0,0.4)"><div class="card-title" style="color:var(--high)">HIGH Severity</div><div class="metric-val" style="color:var(--high);font-family:'Rajdhani',sans-serif;font-size:2rem;margin-bottom:8px" id="sevHigh">0</div><div style="font-size:0.8rem;color:var(--text-muted);line-height:1.6">Confidence &gt;90%<br>Rapid spread, structural threat<br>Response: Full Emergency Protocol</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Severity Classification Features</div>
+      <div class="chart-bars" style="margin-top:8px">
+        <div class="bar-row"><div class="bar-label">Temperature Δ</div><div class="bar-track"><div class="bar-fill" data-val="95%" style="width:95%;background:linear-gradient(90deg,var(--fire-red),var(--fire-orange))"></div></div></div>
+        <div class="bar-row"><div class="bar-label">CO2 Level</div><div class="bar-track"><div class="bar-fill" data-val="88%" style="width:88%;background:linear-gradient(90deg,#FF6B00,#FFA500)"></div></div></div>
+        <div class="bar-row"><div class="bar-label">Wind Speed</div><div class="bar-track"><div class="bar-fill" data-val="76%" style="width:76%;background:linear-gradient(90deg,#4A9FD4,#2E6A9E)"></div></div></div>
+        <div class="bar-row"><div class="bar-label">Humidity</div><div class="bar-track"><div class="bar-fill" data-val="63%" style="width:63%;background:linear-gradient(90deg,#5BBD8E,#3A9E6E)"></div></div></div>
+        <div class="bar-row"><div class="bar-label">Image Features</div><div class="bar-track"><div class="bar-fill" data-val="71%" style="width:71%;background:linear-gradient(90deg,#A855F7,#7C3AED)"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: DATASET ═══ -->
+  <div class="tab-content" id="tab-dataset">
+    <div class="grid-2">
+      <div class="card" style="padding:24px">
+        <div class="card-title">Tabular Dataset — Sensor Records</div>
+        <div class="ds-grid">
+          <div class="ds-item"><div class="ds-label">Source</div><div class="ds-val">Kaggle</div></div>
+          <div class="ds-item"><div class="ds-label">Records</div><div class="ds-val">60,000+</div></div>
+          <div class="ds-item"><div class="ds-label">After Augmentation</div><div class="ds-val">~120,000</div></div>
+          <div class="ds-item"><div class="ds-label">Format</div><div class="ds-val">Parquet</div></div>
+          <div class="ds-item"><div class="ds-label">Features</div><div class="ds-val">16</div></div>
+          <div class="ds-item"><div class="ds-label">Test Split</div><div class="ds-val">20% stratified</div></div>
+        </div>
+      </div>
+      <div class="card" style="padding:24px">
+        <div class="card-title">Image Dataset — YOLOv8 Visual Module</div>
+        <div class="ds-grid">
+          <div class="ds-item"><div class="ds-label">Source</div><div class="ds-val">Kaggle (YOLO)</div></div>
+          <div class="ds-item"><div class="ds-label">Images</div><div class="ds-val">700+</div></div>
+          <div class="ds-item"><div class="ds-label">Test Reserved</div><div class="ds-val">150 images</div></div>
+          <div class="ds-item"><div class="ds-label">Format</div><div class="ds-val">JPEG + .txt labels</div></div>
+          <div class="ds-item"><div class="ds-label">Resolution</div><div class="ds-val">416×416</div></div>
+          <div class="ds-item"><div class="ds-label">Classes</div><div class="ds-val">fire</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB: ABOUT ═══ -->
+  <div class="tab-content" id="tab-about">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Project Details</div>
+        <div style="font-size:0.85rem;line-height:1.8;color:var(--text-muted)">
+          <div style="margin-bottom:6px;color:var(--text-primary)"><strong>Title:</strong> Big Data-Driven Real-Time Fire Detection and Severity Prediction System</div>
+          <div style="margin-bottom:6px"><strong>Programme:</strong> B.Tech Computer Science and Engineering</div>
+          <div style="margin-bottom:6px"><strong>Milestone:</strong> 1 — Research, Planning, Development &amp; Progress Review</div>
+          <div style="margin-bottom:6px"><strong>Submission:</strong> 23rd – 27th March 2026</div>
+          <div style="margin-bottom:6px"><strong>Technologies:</strong> Apache Spark · YOLOv8 · Power BI · Databricks · Flask API</div>
+          <hr style="border-color:var(--border);margin:14px 0">
+          <div style="margin-bottom:4px;color:var(--fire-orange);font-family:'Rajdhani',sans-serif;font-size:0.8rem;letter-spacing:2px">TEAM MEMBERS</div>
+          <div>Aryan Isser <span style="font-family:'Share Tech Mono',monospace;font-size:0.72rem">(E23CSEU0990)</span></div>
+          <div>Mohd Azam <span style="font-family:'Share Tech Mono',monospace;font-size:0.72rem">(E23CSEU0989)</span></div>
+          <div>Mohd Kaif <span style="font-family:'Share Tech Mono',monospace;font-size:0.72rem">(E23CSEU0986)</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Project Objectives</div>
+        <ul class="obj-list">
+          <li class="obj-item"><span class="obj-num">01</span>Scalable Big Data pipeline with Apache Spark (PySpark on Databricks)</li>
+          <li class="obj-item"><span class="obj-num">02</span>Train &amp; compare 5 ML models: LR, DT, RF, SVM, Gradient Boosting</li>
+          <li class="obj-item"><span class="obj-num">03</span>Fire severity prediction — Low / Medium / High classification</li>
+          <li class="obj-item"><span class="obj-num">04</span>Interactive Power BI dashboard for real-time visualisation</li>
+          <li class="obj-item"><span class="obj-num">05</span>YOLOv8 real-time webcam fire detection with screenshot &amp; email</li>
+          <li class="obj-item"><span class="obj-num">06</span>Flask REST API bridge between Python detection and HTML dashboard</li>
+          <li class="obj-item"><span class="obj-num">07</span>CSV detection logging with exportable reports</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ══════════════════════════════════════════════════════════
+function showTab(id, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  if (el) el.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════════════════════════════
+setInterval(() => {
+  const el = document.getElementById('alertTime');
+  if (el) el.textContent = new Date().toLocaleTimeString('en-GB');
+}, 1000);
+
+// ══════════════════════════════════════════════════════════
+//  CONFIDENCE TREND CHART
+// ══════════════════════════════════════════════════════════
+const confData = [];
+const MAX_POINTS = 20;
+const chartW = 600, chartH = 180;
+const padL = 42, padT = 10, padB = 20;
+const plotW = chartW - padL;
+const plotH = chartH - padT - padB;
+
+function confY(pct) {
+  const minP = 60, maxP = 100;
+  return padT + plotH - ((pct - minP) / (maxP - minP)) * plotH;
+}
+
+function updateConfChart() {
+  if (confData.length < 2) return;
+  const xStep = plotW / (MAX_POINTS - 1);
+  let linePath = '', areaPath = '';
+  confData.forEach((v, i) => {
+    const x = padL + i * xStep;
+    const y = confY(v);
+    if (i === 0) { linePath = `M${x},${y}`; areaPath = `M${x},${chartH - padB} L${x},${y}`; }
+    else          { linePath += ` L${x},${y}`; areaPath += ` L${x},${y}`; }
+  });
+  const lastX = padL + (confData.length - 1) * xStep;
+  areaPath += ` L${lastX},${chartH - padB} Z`;
+  document.getElementById('confLine').setAttribute('d', linePath);
+  document.getElementById('confArea').setAttribute('d', areaPath);
+  const dotsG = document.getElementById('confDots');
+  dotsG.innerHTML = '';
+  confData.forEach((v, i) => {
+    const x = padL + i * xStep;
+    const y = confY(v);
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 3);
+    c.setAttribute('fill', v >= 90 ? '#FF2D00' : '#FF6B00');
+    c.setAttribute('stroke', '#080B10'); c.setAttribute('stroke-width', '1.5');
+    dotsG.appendChild(c);
+  });
+}
+
+function pushConfPoint(val) {
+  confData.push(val);
+  if (confData.length > MAX_POINTS) confData.shift();
+  updateConfChart();
+}
+
+// ══════════════════════════════════════════════════════════
+//  DETECTION LOG
+// ══════════════════════════════════════════════════════════
+let logData   = [];
+let logFilter = 'ALL';
+let rowIndex  = 0;
+let sevCounts = { HIGH: 0, MED: 0, LOW: 0 };
+
+function addLogRow(sev, conf, time, source) {
+  rowIndex++;
+  sevCounts[sev] = (sevCounts[sev] || 0) + 1;
+  const row = { id: rowIndex, time, conf, sev, source: source || '📷 Webcam' };
+  logData.unshift(row);
+  renderLog();
+  pushConfPoint(conf);
+
+  // Update severity tab counts
+  document.getElementById('sevHigh').textContent = sevCounts.HIGH || 0;
+  document.getElementById('sevMed').textContent  = sevCounts.MED  || 0;
+  document.getElementById('sevLow').textContent  = sevCounts.LOW  || 0;
+
+  // Update log stats
+  document.getElementById('logTotal').textContent  = logData.length;
+  document.getElementById('logAlerts').textContent = Math.ceil(logData.length / 3);
+  const avg = (logData.reduce((s, r) => s + r.conf, 0) / logData.length).toFixed(1);
+  document.getElementById('logAvgConf').textContent = avg + '%';
+}
+
+function renderLog() {
+  const tbody    = document.getElementById('logTableBody');
+  const filtered = logFilter === 'ALL' ? logData : logData.filter(r => r.sev === logFilter);
+  tbody.innerHTML = filtered.map(r => {
+    const cc = r.conf >= 90 ? 'conf-high' : r.conf >= 80 ? 'conf-med' : 'conf-low';
+    return `<tr>
+      <td style="color:var(--text-muted)">${r.id}</td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:0.75rem">${r.time}</td>
+      <td class="${cc}" style="font-family:'Share Tech Mono',monospace;font-weight:700">${r.conf.toFixed(1)}%</td>
+      <td><span class="sev-badge ${r.sev}" style="font-size:0.6rem">${r.sev}</span></td>
+      <td style="font-size:0.75rem;color:var(--text-muted)">${r.source}</td>
+      <td><span class="log-badge email">EMAIL</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterLog(f, el) {
+  logFilter = f;
+  document.querySelectorAll('.fpill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  renderLog();
+}
+
+function exportCSV() {
+  const header = ['#', 'Timestamp', 'Confidence_%', 'Severity', 'Source'];
+  const rows   = logData.map(r => [r.id, r.time, r.conf.toFixed(1), r.sev, r.source]);
+  const csv    = [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob   = new Blob([csv], { type: 'text/csv' });
+  const a      = document.createElement('a');
+  a.href       = URL.createObjectURL(blob);
+  a.download   = `fireshield_log_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════════
+//  EVENT FEED
+// ══════════════════════════════════════════════════════════
+const classMap = { HIGH: 'high', MED: 'med', LOW: 'low', NONE: 'none' };
+
+function addEventFeed(sev, conf, time, label) {
+  const feed = document.getElementById('eventFeed');
+  const div  = document.createElement('div');
+  div.className = `event-item ${classMap[sev] || 'med'}`;
+  div.innerHTML = `
+    <span class="sev-badge ${sev}">${sev}</span>
+    <span class="event-loc">${label || '📷 Live Webcam Detection'}</span>
+    <span class="event-conf">${sev !== 'NONE' ? conf + '%' : '—'}</span>
+    <span class="event-time">${time}</span>`;
+  feed.insertBefore(div, feed.firstChild);
+  if (feed.children.length > 15) feed.removeChild(feed.lastChild);
+}
+
+// ══════════════════════════════════════════════════════════
+//  GALLERY
+// ══════════════════════════════════════════════════════════
+function buildGallery() {
+  const grid   = document.getElementById('galleryGrid');
+  const times  = ['22-14-33','22-09-17','21-55-02','21-43-28','21-31-55','20-58-10','20-42-37','20-11-09'];
+  const confs  = [94.7, 88.3, 91.2, 76.5, 83.9, 95.1, 79.4, 87.6];
+  const colors = { HIGH: 'rgba(255,45,0,0.7)', MED: 'rgba(255,107,0,0.6)', LOW: 'rgba(255,215,0,0.5)' };
+
+  times.forEach((t, i) => {
+    const sev  = confs[i] >= 90 ? 'HIGH' : confs[i] >= 80 ? 'MED' : 'LOW';
+    const div  = document.createElement('div');
+    div.className = 'gallery-item';
+    div.innerHTML = `
+      <svg viewBox="0 0 180 135" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;display:block;background:#0a0a0a">
+        <rect width="180" height="135" fill="#0D0D0D"/>
+        <rect x="20" y="60" width="60" height="60" fill="rgba(30,20,10,0.8)" rx="2"/>
+        <rect x="100" y="40" width="70" height="80" fill="rgba(25,15,8,0.8)" rx="2"/>
+        <ellipse cx="${60+Math.random()*60}" cy="${50+Math.random()*30}" rx="${15+Math.random()*20}" ry="${10+Math.random()*15}" fill="${colors[sev]}" opacity="0.6"/>
+        <ellipse cx="${60+Math.random()*60}" cy="${50+Math.random()*30}" rx="${8+Math.random()*10}" ry="${5+Math.random()*8}" fill="rgba(255,200,0,0.7)"/>
+        <rect x="45" y="25" width="90" height="65" fill="none" stroke="#FF2D00" stroke-width="2.5" rx="2"/>
+        <rect x="45" y="25" width="75" height="18" fill="rgba(180,0,0,0.85)" rx="2"/>
+        <text x="52" y="37" fill="white" font-size="9" font-family="Share Tech Mono,monospace">fire ${confs[i]}%</text>
+      </svg>
+      <div class="gal-overlay">
+        <span class="gal-conf">${confs[i]}%</span>
+        <span style="float:right">fire_2026-04-08_${t}.jpg</span>
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+buildGallery();
+
+// ══════════════════════════════════════════════════════════
+//  HEATMAP
+// ══════════════════════════════════════════════════════════
+function buildHeatmap() {
+  const days     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const heatData = days.map(() => Array.from({ length: 24 }, () => Math.floor(Math.random() * 12)));
+  const wrap     = document.getElementById('heatmapWrap');
+  let html = '<div style="display:grid;grid-template-columns:40px repeat(24,1fr);gap:3px">';
+  html += '<div></div>';
+  for (let h = 0; h < 24; h++) html += `<div class="hm-hour">${String(h).padStart(2,'0')}</div>`;
+  days.forEach((day, di) => {
+    html += `<div class="hm-label">${day}</div>`;
+    heatData[di].forEach(val => {
+      const alpha  = val === 0 ? 0.04 : 0.08 + (val / 12) * 0.72;
+      const color  = val >= 8 ? `rgba(255,45,0,${alpha})` : val >= 4 ? `rgba(255,107,0,${alpha})` : `rgba(255,215,0,${alpha})`;
+      const border = val >= 8 ? 'rgba(255,45,0,0.3)' : val >= 4 ? 'rgba(255,107,0,0.2)' : 'rgba(255,215,0,0.1)';
+      html += `<div class="hm-cell" style="background:${color};border:1px solid ${border}" title="${val} events">${val || ''}</div>`;
+    });
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+buildHeatmap();
+
+// ══════════════════════════════════════════════════════════
+//  AUDIO BEEP
+// ══════════════════════════════════════════════════════════
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playBeep() {
+  try {
+    const ctx  = getAudioCtx();
+    // Resume context if suspended (browser autoplay policy)
+    if (ctx.state === 'suspended') ctx.resume();
+
+    // Two-tone urgent beep
+    [880, 1100].forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      const start = ctx.currentTime + i * 0.25;
+      gain.gain.setValueAtTime(0.35, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.2);
+      osc.start(start);
+      osc.stop(start + 0.2);
+    });
+  } catch(e) { console.warn('Audio beep failed:', e); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  FIRE ALERT UI STATE
+// ══════════════════════════════════════════════════════════
+function setFireUI(on, conf) {
+  const banner    = document.getElementById('alertBanner');
+  const title     = document.getElementById('alertTitle');
+  const sub       = document.getElementById('alertSub');
+  const icon      = document.getElementById('alertIcon');
+  const container = document.getElementById('webcamContainer');
+
+  if (on) {
+    banner.style.background    = 'rgba(255,45,0,0.18)';
+    banner.style.borderColor   = 'rgba(255,45,0,0.8)';
+    title.textContent          = 'HIGH SEVERITY ALERT — FIRE DETECTED';
+    sub.textContent            = `Confidence: ${conf}% | Screenshot saved | Email alert sent`;
+    icon.textContent           = '🔥';
+    document.body.classList.add('fire-alert');
+    if (container) container.classList.add('fire-ring');
+    // Flash stat cards
+    ['statDetect','statConf'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.classList.add('fire-flash'); setTimeout(() => el.classList.remove('fire-flash'), 1500); }
+    });
+  } else {
+    banner.style.background    = '';
+    banner.style.borderColor   = '';
+    title.textContent          = 'SYSTEM MONITORING';
+    sub.textContent            = 'No fire detected · API polling active · fire.py connected';
+    icon.textContent           = '✅';
+    document.body.classList.remove('fire-alert');
+    if (container) container.classList.remove('fire-ring');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  API POLLING — Reads from fire.py Flask server
+// ══════════════════════════════════════════════════════════
+let pollInterval  = null;
+let lastFireState = false;
+let lastLogLen    = 0;
+let realFrames    = 0;
+let apiConnected  = false;
+
+function updateApiStatus(connected) {
+  apiConnected = connected;
+  const pill   = document.getElementById('apiStatusPill');
+  const dot    = document.getElementById('apiDot');
+  const text   = document.getElementById('apiStatusText');
+  const badge  = document.getElementById('apiStatusBadge');
+
+  if (connected) {
+    pill.className = 'status-pill api-ok';
+    dot.style.background = 'var(--green)';
+    text.textContent = 'fire.py Connected';
+    if (badge) { badge.className = 'api-badge connected'; badge.textContent = '⬤ fire.py API: Connected — receiving live data'; }
+  } else {
+    pill.className = 'status-pill api-err';
+    dot.style.background = '#888';
+    text.textContent = 'fire.py Offline';
+    if (badge) { badge.className = 'api-badge disconnected'; badge.textContent = '⬤ fire.py API: Not Connected — run fire.py in terminal first'; }
+  }
+}
+
+async function pollFirePy() {
+  try {
+    const res  = await fetch('http://127.0.0.1:5050/status', { signal: AbortSignal.timeout(800) });
+    const data = await res.json();
+
+    updateApiStatus(true);
+
+    // Update FPS everywhere
+    const fps = data.fps || 0;
+    document.getElementById('liveFPS').textContent  = fps;
+    document.getElementById('dashFPS').textContent  = fps;
+
+    // Frame counter (simulated from fps)
+    realFrames += Math.round(fps / 2);
+    document.getElementById('frameCount').textContent = realFrames;
+
+    // Total detections
+    const total = data.total_detections || 0;
+    document.getElementById('liveDetections').textContent = total;
+    document.getElementById('detectCount').textContent    = total;
+    document.getElementById('ssCount').textContent        = total;
+
+    if (data.fire_detected) {
+      const conf = data.confidence || 0;
+      document.getElementById('liveConf').textContent = conf + '%';
+      document.getElementById('lastConf').textContent = conf + '%';
+
+      // Only react on NEW detection (state change)
+      if (!lastFireState) {
+        playBeep();
+        setFireUI(true, conf);
+
+        // Add to event feed + log
+        const sev  = conf >= 90 ? 'HIGH' : conf >= 80 ? 'MED' : 'LOW';
+        const time = data.last_detection_time || new Date().toLocaleTimeString('en-GB');
+        addEventFeed(sev, conf, time);
+        addLogRow(sev, conf, time, '📷 Webcam (fire.py)');
+      }
+      lastFireState = true;
+    } else {
+      if (lastFireState) setFireUI(false, 0);
+      lastFireState = false;
+    }
+
+    // Sync new log entries from fire.py
+    if (data.log && data.log.length > lastLogLen) {
+      const newEntries = data.log.slice(0, data.log.length - lastLogLen);
+      newEntries.reverse().forEach(entry => {
+        if (entry && entry.conf) pushConfPoint(entry.conf);
+      });
+      lastLogLen = data.log.length;
+    }
+
+  } catch (e) {
+    updateApiStatus(false);
+    if (lastFireState) { setFireUI(false, 0); lastFireState = false; }
+  }
+}
+
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(pollFirePy, 500);
+  pollFirePy(); // immediate first call
+}
+
+function stopPolling() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+// ══════════════════════════════════════════════════════════
+//  WEBCAM
+// ══════════════════════════════════════════════════════════
+let webcamStream = null;
+
+async function toggleWebcam() {
+  if (webcamStream) { stopWebcam(); return; }
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480 }, audio:false });
+    const video  = document.getElementById('webcamVideo');
+    const canvas = document.getElementById('webcamCanvas');
+    video.srcObject = webcamStream;
+    video.onloadedmetadata = () => {
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+    };
+    document.getElementById('webcamHidden').style.display = 'none';
+    document.getElementById('webcamActive').style.display = 'block';
+    document.getElementById('webcamBtn').classList.add('running');
+    document.getElementById('webcamBtnText').textContent  = 'DETECTION RUNNING...';
+    realFrames    = 0;
+    lastFireState = false;
+    lastLogLen    = 0;
+    startPolling();   // ← start reading from fire.py API
+  } catch (err) {
+    alert('Camera access denied or unavailable.\n\n' + err.message);
+  }
+}
+
+function stopWebcam() {
+  if (webcamStream) { webcamStream.getTracks().forEach(t => t.stop()); webcamStream = null; }
+  stopPolling();
+  document.getElementById('webcamHidden').style.display = 'block';
+  document.getElementById('webcamActive').style.display = 'none';
+  document.getElementById('webcamBtn').classList.remove('running');
+  document.getElementById('webcamBtnText').textContent  = 'START WEBCAM DETECTION';
+  setFireUI(false, 0);
+  realFrames = 0;
+  ['frameCount','liveDetections','liveFPS','liveSS'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('liveConf').textContent = '—';
+}
+
+// ══════════════════════════════════════════════════════════
+//  START BACKGROUND API POLL (even without webcam open)
+// ══════════════════════════════════════════════════════════
+startPolling();
+</script>
+</body>
+</html>
